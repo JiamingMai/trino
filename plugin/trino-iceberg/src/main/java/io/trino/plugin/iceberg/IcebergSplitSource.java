@@ -20,11 +20,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import io.airlift.units.DataSize;
 import io.airlift.units.Duration;
+import io.trino.filesystem.FileIterator;
 import io.trino.filesystem.Location;
 import io.trino.filesystem.TrinoFileSystemFactory;
 import io.trino.filesystem.TrinoInputFile;
 import io.trino.plugin.iceberg.delete.DeleteFile;
 import io.trino.plugin.iceberg.util.DataFileWithDeleteFiles;
+import io.trino.spi.HostAddress;
 import io.trino.spi.SplitWeight;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ColumnHandle;
@@ -52,8 +54,13 @@ import org.apache.iceberg.types.Type;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -483,7 +490,40 @@ public class IcebergSplitSource
                 task.deletes().stream()
                         .map(DeleteFile::fromIceberg)
                         .collect(toImmutableList()),
-                SplitWeight.fromProportion(Math.min(Math.max((double) task.length() / tableScan.targetSplitSize(), minimumAssignedSplitWeight), 1.0)));
+                SplitWeight.fromProportion(Math.min(Math.max((double) task.length() / tableScan.targetSplitSize(), minimumAssignedSplitWeight), 1.0)),
+                getAddresses(task.file().path().toString()));
+    }
+
+    private List<HostAddress> getAddresses(String filePath)
+    {
+        try {
+            FileIterator fileIterator = fileSystemFactory.create(session).listFiles(Location.of(filePath));
+            Field iteratorField = fileIterator.getClass().getDeclaredField("iterator");
+            iteratorField.setAccessible(true);
+            Object iterator = iteratorField.get(fileIterator);
+            Field owningFileSystemWrapperField = iterator.getClass().getDeclaredField("owningFileSystemWrapper");
+            owningFileSystemWrapperField.setAccessible(true);
+            Object fileSystemWrapper = owningFileSystemWrapperField.get(iterator);
+            Class<?> pathClass = Class.forName("org.apache.hadoop.fs.Path");
+            Object path = pathClass.getConstructor(String.class).newInstance(filePath);
+            Method getFileBlockLocationsMethod = fileSystemWrapper.getClass().getMethod("getFileBlockLocations", pathClass, long.class, long.class);
+            getFileBlockLocationsMethod.setAccessible(true);
+            Object blockLocations = getFileBlockLocationsMethod.invoke(fileSystemWrapper, path, 0L, 1024L);
+            Set<String> addressSet = new HashSet<>();
+            if (blockLocations.getClass().isArray()) {
+                int length = Array.getLength(blockLocations);
+                for (int i = 0; i < length; i++) {
+                    Object blockLocation = Array.get(blockLocations, i);
+                    String[] addresses = (String[]) blockLocation.getClass().getMethod("getNames").invoke(blockLocation);
+                    Collections.addAll(addressSet, addresses);
+                }
+            }
+            return addressSet.stream().map(HostAddress::fromString).toList();
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
     }
 
     private static Domain getPathDomain(TupleDomain<IcebergColumnHandle> effectivePredicate)

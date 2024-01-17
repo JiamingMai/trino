@@ -19,6 +19,7 @@ import com.google.common.base.MoreObjects.ToStringHelper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import io.trino.plugin.iceberg.delete.DeleteFile;
+import io.trino.spi.HostAddress;
 import io.trino.spi.SplitWeight;
 import io.trino.spi.connector.ConnectorSplit;
 
@@ -45,6 +46,8 @@ public class IcebergSplit
     private final List<DeleteFile> deletes;
     private final SplitWeight splitWeight;
 
+    private final List<HostAddress> addresses;
+
     @JsonCreator
     public IcebergSplit(
             @JsonProperty("path") String path,
@@ -56,7 +59,8 @@ public class IcebergSplit
             @JsonProperty("partitionSpecJson") String partitionSpecJson,
             @JsonProperty("partitionDataJson") String partitionDataJson,
             @JsonProperty("deletes") List<DeleteFile> deletes,
-            @JsonProperty("splitWeight") SplitWeight splitWeight)
+            @JsonProperty("splitWeight") SplitWeight splitWeight,
+            @JsonProperty("addresses") List<HostAddress> addresses)
     {
         this.path = requireNonNull(path, "path is null");
         this.start = start;
@@ -68,6 +72,7 @@ public class IcebergSplit
         this.partitionDataJson = requireNonNull(partitionDataJson, "partitionDataJson is null");
         this.deletes = ImmutableList.copyOf(requireNonNull(deletes, "deletes is null"));
         this.splitWeight = requireNonNull(splitWeight, "splitWeight is null");
+        this.addresses = ImmutableList.copyOf(addresses);
     }
 
     @JsonProperty
@@ -150,6 +155,13 @@ public class IcebergSplit
                 + estimatedSizeOf(partitionDataJson)
                 + estimatedSizeOf(deletes, DeleteFile::getRetainedSizeInBytes)
                 + splitWeight.getRetainedSizeInBytes();
+    }
+
+    @JsonProperty
+    @Override
+    public List<HostAddress> getAddresses()
+    {
+        return addresses;
     }
 
     @Override

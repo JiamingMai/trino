@@ -55,6 +55,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -165,7 +166,8 @@ public class TestIcebergNodeLocalDynamicSplitPruning
                 PartitionSpecParser.toJson(PartitionSpec.unpartitioned()),
                 PartitionData.toJson(new PartitionData(new Object[] {})),
                 ImmutableList.of(),
-                SplitWeight.standard());
+                SplitWeight.standard(),
+                Collections.emptyList());
 
         String tablePath = inputFile.location().fileName();
         TableHandle tableHandle = new TableHandle(
