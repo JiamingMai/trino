@@ -14,7 +14,6 @@
 package io.trino.plugin.iceberg;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.MoreObjects.ToStringHelper;
 import com.google.common.collect.ImmutableList;
@@ -47,6 +46,8 @@ public class IcebergSplit
     private final List<DeleteFile> deletes;
     private final SplitWeight splitWeight;
 
+    private final List<HostAddress> addresses;
+
     @JsonCreator
     public IcebergSplit(
             @JsonProperty("path") String path,
@@ -58,7 +59,8 @@ public class IcebergSplit
             @JsonProperty("partitionSpecJson") String partitionSpecJson,
             @JsonProperty("partitionDataJson") String partitionDataJson,
             @JsonProperty("deletes") List<DeleteFile> deletes,
-            @JsonProperty("splitWeight") SplitWeight splitWeight)
+            @JsonProperty("splitWeight") SplitWeight splitWeight,
+            @JsonProperty("addresses") List<HostAddress> addresses)
     {
         this.path = requireNonNull(path, "path is null");
         this.start = start;
@@ -70,19 +72,13 @@ public class IcebergSplit
         this.partitionDataJson = requireNonNull(partitionDataJson, "partitionDataJson is null");
         this.deletes = ImmutableList.copyOf(requireNonNull(deletes, "deletes is null"));
         this.splitWeight = requireNonNull(splitWeight, "splitWeight is null");
+        this.addresses = ImmutableList.copyOf(addresses);
     }
 
     @Override
     public boolean isRemotelyAccessible()
     {
         return true;
-    }
-
-    @JsonIgnore
-    @Override
-    public List<HostAddress> getAddresses()
-    {
-        return ImmutableList.of();
     }
 
     @JsonProperty
@@ -165,6 +161,13 @@ public class IcebergSplit
                 + estimatedSizeOf(partitionDataJson)
                 + estimatedSizeOf(deletes, DeleteFile::getRetainedSizeInBytes)
                 + splitWeight.getRetainedSizeInBytes();
+    }
+
+    @JsonProperty
+    @Override
+    public List<HostAddress> getAddresses()
+    {
+        return addresses;
     }
 
     @Override
