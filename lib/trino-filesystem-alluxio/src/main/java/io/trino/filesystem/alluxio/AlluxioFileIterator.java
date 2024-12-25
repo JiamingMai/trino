@@ -24,19 +24,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 
-import static io.trino.filesystem.alluxio.AlluxioUtils.convertToLocation;
+import static io.trino.filesystem.alluxio.AlluxioUtils.extractSchema;
+import static io.trino.filesystem.alluxio.AlluxioUtils.formatSchema;
 import static java.util.Objects.requireNonNull;
 
 public class AlluxioFileIterator
         implements FileIterator
 {
     private final Iterator<URIStatus> files;
-    private final String mountRoot;
+    private final Location dirLocation;
 
-    public AlluxioFileIterator(List<URIStatus> files, String mountRoot)
+    public AlluxioFileIterator(List<URIStatus> files, Location dirLocation)
     {
         this.files = requireNonNull(files.iterator(), "files is null");
-        this.mountRoot = requireNonNull(mountRoot, "mountRoot is null");
+        this.dirLocation = requireNonNull(dirLocation, "dirLocation is null");
     }
 
     @Override
@@ -54,9 +55,15 @@ public class AlluxioFileIterator
             return null;
         }
         URIStatus fileStatus = files.next();
-        Location location = convertToLocation(fileStatus.getPath(), mountRoot);
+        String path = fileStatus.getPath();
+        if (path.startsWith("/")) {
+            path = path.substring(1);
+        }
+        Location schema = extractSchema(dirLocation);
+        Location fileLocation = schema.appendSuffix(path);
+        fileLocation = formatSchema(fileLocation);
         return new FileEntry(
-                location,
+                fileLocation,
                 fileStatus.getLength(),
                 Instant.ofEpochMilli(fileStatus.getLastModificationTimeMs()),
                 Optional.empty());

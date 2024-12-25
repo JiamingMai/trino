@@ -26,6 +26,34 @@ public class AlluxioUtils
 {
     private AlluxioUtils() {}
 
+    public static Location extractSchema(Location location)
+    {
+        String path = location.toString();
+        if (path.startsWith("alluxio://")) {
+            int index = path.indexOf("/", "alluxio://".length());
+            if (index != -1) {
+                String schema = path.substring(0, index);
+                return Location.of(schema + "/");
+            }
+            else {
+                return location;
+            }
+        }
+        else if (path.startsWith("alluxio:/")) {
+            return Location.of("alluxio://");
+        }
+        return location;
+    }
+
+    public static Location formatSchema(Location location)
+    {
+        String path = location.toString();
+        if (path.startsWith("alluxio:///")) {
+            return Location.of("alluxio:/" + path.substring("alluxio:///".length()));
+        }
+        return location;
+    }
+
     public static Location convertToLocation(String path, String mountRoot)
     {
         requireNonNull(path, "path is null");
